@@ -1,0 +1,15 @@
+fastapi
+uvicorn
+SQLAlchemy
+psycopg2-binary  # Easier install; use 'psycopg2' for production if needed.
+pydantic
+python-dotenv
+alembic
+passlib[bcrypt]
+httpx
+pydantic-settings
+python-jose
+pydantic[email]
+python-jose[cryptography]
+bcrypt==4.0.1
+passlib==1.7.4
