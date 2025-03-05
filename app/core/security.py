@@ -4,6 +4,12 @@ from jose import jwt, JWTError
 from typing import Optional
 from app.core.config import settings
 
+from fastapi import Depends, HTTPException
+from sqlalchemy.orm import Session
+from app.models.user import User
+from app.db.session import get_db
+from fastapi.security import OAuth2PasswordBearer
+
 # Constants from configuration
 SECRET_KEY = settings.SECRET_KEY
 ALGORITHM = settings.ALGORITHM
@@ -35,13 +41,6 @@ def decode_access_token(token: str) -> Optional[dict]:
     except JWTError:
         return None
 
-from fastapi import Depends, HTTPException
-from jose import jwt, JWTError
-from sqlalchemy.orm import Session
-from app.models.user import User
-from app.db.session import get_db
-from app.core.config import settings
-from fastapi.security import OAuth2PasswordBearer
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
 

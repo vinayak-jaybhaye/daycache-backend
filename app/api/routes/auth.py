@@ -4,7 +4,7 @@ from app.schemas.user import UserCreate, UserLogin
 from app.db.session import get_db
 from app.models.user import User
 from app.core.security import create_access_token, verify_password
-from app.services.user_service import create_user as service_create_user
+from app.services.user_services import create_user as service_create_user
 
 router = APIRouter()
 

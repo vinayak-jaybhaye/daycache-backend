@@ -8,7 +8,6 @@ class Entry(Base):
 
     id = Column(BigInteger, primary_key=True, index=True)
     day_id = Column(BigInteger, ForeignKey("days.id", ondelete="CASCADE"), nullable=False)
-    timestamp = Column(TIMESTAMP, default=lambda: datetime.now(timezone.utc))
     location = Column(VARCHAR(200), nullable=True)
     content = Column(Text, nullable=True)
     tags = Column(ARRAY(VARCHAR), nullable=True)

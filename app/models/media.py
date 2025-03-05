@@ -8,7 +8,6 @@ class Media(Base):
 
     id = Column(BigInteger, primary_key=True, index=True)
     entry_id = Column(BigInteger, ForeignKey("entries.id", ondelete="CASCADE"), nullable=False)
-    file_type = Column(VARCHAR(20), nullable=False)    # e.g., "image", "audio", "video"
     file_url = Column(Text, nullable=False)
     created_at = Column(TIMESTAMP, default=lambda: datetime.now(timezone.utc))
 

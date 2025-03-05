@@ -13,4 +13,4 @@ class Day(Base):
     created_at = Column(TIMESTAMP, default=lambda: datetime.now(timezone.utc))
 
     user = relationship("User", back_populates="days")
-    entries = relationship("Entry", back_populates="days", cascade="all, delete")
+    entries = relationship("Entry", back_populates="day", cascade="all, delete")
