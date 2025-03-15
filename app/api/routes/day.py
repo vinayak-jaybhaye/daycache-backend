@@ -5,60 +5,87 @@ from app.models.day import Day
 from app.models.user import User
 from app.schemas.day import DayCreate, DayResponse
 from app.core.security import get_current_user
-from app.services.entry_services import get_all_entries
-from app.services.automate.summary_service import generate_summary
+from app.services.day_services import get_day, get_all_days, summarize_day
+from app.services.automate.cache_my_day import cache_my_day
+from app.schemas.day import CacheMyDayRequest
 
 router = APIRouter()
 
-@router.post("/create-day", response_model=DayResponse)
+
+@router.post("/create-day")
 def create_day(
     day: DayCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
-    existing_day = db.query(Day).filter(Day.user_id == current_user.id, Day.date == day.date).first()
+    existing_day = (
+        db.query(Day)
+        .filter(Day.user_id == current_user.id, Day.date == day.date)
+        .first()
+    )
     if existing_day:
         raise HTTPException(status_code=400, detail="Day already exists for this date")
 
-    new_day = Day(user_id=current_user.id, date=day.date, latest_summary=day.latest_summary)
+    new_day = Day(
+        user_id=current_user.id, date=day.date, latest_summary=day.latest_summary
+    )
     db.add(new_day)
     db.commit()
     db.refresh(new_day)
     return new_day
 
 
-
 @router.get("/get-days", response_model=list[DayResponse])
 def get_days(
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):  
+    db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
+):
     days = db.query(Day).filter(Day.user_id == current_user.id).all()
     print(days)
     return days
 
-@router.get("/summary/{day_id}", response_model=DayResponse)
-def get_summary(
+
+@router.post("/users/{user_id}/days/{day_id}/summarize")
+def summarize(
+    user_id: int,
     day_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    # current_user: User = Depends(get_current_user),
 ):
-    # Step 1: Fetch all entries for the day
-    entries = get_all_entries(db, day_id)
+    summary = summarize_day(user_id,day_id, db)
+    return summary
 
-    # Step 2: Combine all content into one string
-    content = "\n".join(entry.content for entry in entries)
 
-    # Step 3: Generate summary using Hugging Face API
-    summary = generate_summary(content)
-
-    # Step 4: Update the `latest_summary` column in the Day table
-    day = db.query(Day).filter(Day.id == day_id).first()
+@router.get("/users/{user_id}/days/{date}")
+def get_user_day(
+    user_id: int,
+    date: str,
+    db: Session = Depends(get_db),
+    # current_user: User = Depends(get_current_user),
+):
+    day = get_day(user_id, date, db)
+    print(day)
     if not day:
         raise HTTPException(status_code=404, detail="Day not found")
-    
-    day.latest_summary = summary
-    db.commit()
-
-    # Step 5: Return the updated day (with summary included)
     return day
+
+
+@router.get("/users/{user_id}/days")
+def get_user_days(
+    user_id: int,
+    db: Session = Depends(get_db),
+    # current_user: User = Depends(get_current_user),
+):
+    days = get_all_days(user_id, db)
+    return days
+
+@router.post("/users/{user_id}/days/{day_id}/cache-my-day")
+def cache_today(
+    user_id: int,
+    day_id: int,
+    request: CacheMyDayRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+   response = cache_my_day(request.User, request.myday,request.DiaryAssistant)
+   return response
+

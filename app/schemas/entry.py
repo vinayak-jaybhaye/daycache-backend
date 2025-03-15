@@ -2,16 +2,19 @@ from pydantic import BaseModel
 from typing import List, Optional
 from datetime import datetime
 
+
 class EntryCreate(BaseModel):
-    day_id: int
-    location: Optional[str]
-    content: Optional[str]
-    tags: List[str] = []
+    day_id: Optional[int] = None
+    location: Optional[str] = None
+    content: str
+    tags: Optional[list[str]] = None
+
 
 class EntryUpdate(BaseModel):
     location: Optional[str]
     content: Optional[str]
     tags: List[str] = []
+
 
 class EntryResponse(BaseModel):
     id: int
@@ -27,6 +30,7 @@ class EntryResponse(BaseModel):
 
 class SuggestionResponse(BaseModel):
     suggested: List[str]
+
 
 class SuggestionRequest(BaseModel):
     content: str

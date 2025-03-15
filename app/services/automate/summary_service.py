@@ -1,30 +1,22 @@
-import requests
+import google.generativeai as genai
+from app.core.config import settings
+
+# Initialize Gemini API
+genai.configure(api_key=settings.GEMINI_API_KEY)
 
 def generate_summary(text: str) -> str:
-    API_URL = "https://api-inference.huggingface.co/models/facebook/bart-large-cnn"
-    headers = {"Authorization": f"Bearer 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"}
+    try:
+        # Create a prompt for summarization
+        prompt = f"This is my personal diary, summarize today for me and respond with only summary nothing else: {text}"
 
-    payload = {
-        "inputs": text,
-        "parameters": {
-            "max_length": 200,
-            # "min_length": 50,
-            "do_sample": False
-        }
-    }
+        # Use the 'gemini-pro' model for text generation
+        model = genai.GenerativeModel("models/gemini-2.0-flash")
 
-    print("text", text)
-    text = "This is my personal diary please summarize today for me" + text
+        # Generate a summary
+        response = model.generate_content(prompt)
+       
+        return response.text.strip()
+    except Exception as e:
+        raise Exception(f"Gemini API failed: {e}")
 
-    response = requests.post(API_URL, headers=headers, json=payload)
-
-    if response.status_code != 200:
-        raise Exception(f"HF API failed: {response.text}")
-
-    summary = response.json()[0]['summary_text']
-    return summary
-
-
-# string = "Are you struggling with losing the numbering, bulleted, or tabbed formatting when"
-# summary = generate_summary("")
-# print(summary)
+    

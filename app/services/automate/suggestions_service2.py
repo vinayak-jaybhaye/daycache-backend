@@ -3,11 +3,16 @@ from app.core.config import settings
 
 HUGGINGFACE_API_KEY = settings.HUGGINGFACE_API_KEY
 
+
 def generate_suggestions(prompt: str, num_suggestions=3):
-    url = "https://api-inference.huggingface.co/models/mistralai/Mistral-7B-Instruct-v0.1"
+    url = (
+        "https://api-inference.huggingface.co/models/mistralai/Mistral-7B-Instruct-v0.1"
+    )
 
     if not HUGGINGFACE_API_KEY:
-        raise ValueError("Missing Hugging Face API key. Set it in your environment variables.")
+        raise ValueError(
+            "Missing Hugging Face API key. Set it in your environment variables."
+        )
 
     headers = {"Authorization": f"Bearer {HUGGINGFACE_API_KEY}"}
 
@@ -25,8 +30,8 @@ def generate_suggestions(prompt: str, num_suggestions=3):
             "temperature": 0.7,
             "do_sample": True,
             "top_p": 0.9,
-            "num_return_sequences": 1  # Ask for 1 clean block (not 3 messy ones)
-        }
+            "num_return_sequences": 1,  # Ask for 1 clean block (not 3 messy ones)
+        },
     }
 
     try:
@@ -35,7 +40,7 @@ def generate_suggestions(prompt: str, num_suggestions=3):
         data = response.json()
 
         # Get the text result (should be one string)
-        raw_text = data[0]['generated_text']
+        raw_text = data[0]["generated_text"]
 
         # Parse the response into a clean list of suggestions
         suggestions = []
@@ -48,11 +53,14 @@ def generate_suggestions(prompt: str, num_suggestions=3):
         return suggestions[:num_suggestions]
 
     except httpx.HTTPStatusError as http_err:
-        print(f"HTTP error occurred: {http_err.response.status_code} - {http_err.response.text}")
+        print(
+            f"HTTP error occurred: {http_err.response.status_code} - {http_err.response.text}"
+        )
     except Exception as err:
         print(f"Unexpected error: {err}")
 
     return []
+
 
 if __name__ == "__main__":
     prompt = "Today I felt stressed after work. I need some ideas to relax and improve my mood."

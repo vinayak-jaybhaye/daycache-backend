@@ -36,3 +36,8 @@ uvicorn==0.34.0
 python-multipart
 cloudinary
 transformers
+dateparser
+google-generativeai
+redis
+resend
+fastapi[all]

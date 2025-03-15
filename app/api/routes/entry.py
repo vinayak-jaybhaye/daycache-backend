@@ -1,45 +1,103 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
+from fastapi import APIRouter, Depends, Request, HTTPException, status
 from sqlalchemy.orm import Session
+from app.models.user import User
+from app.core.security import get_current_user
+from datetime import datetime
 from app.db.session import get_db
-from app.schemas.entry import EntryCreate, EntryUpdate, EntryResponse, SuggestionResponse, SuggestionRequest
-from app.services.automate.suggestions_service import generate_suggestions
-from app.services.entry_services import create_entry, update_entry, get_entry, delete_entry, get_all_entries
+from app.services.automate.recommendations import recommendations
+from app.services.entry_services import create_entry_in_db, update_entry_in_db, delete_entry_in_db, get_all_entries
 
 router = APIRouter()
 
-@router.post("/", response_model=EntryResponse, status_code=status.HTTP_201_CREATED)
-def create_entry_endpoint(entry_data: EntryCreate, db: Session = Depends(get_db)):
-    entry = create_entry(db, entry_data)
-    return entry
+@router.patch("/entries/{entry_id}/update")  # ✅ Fixed path
+async def update_entry(
+    entry_id: int,
+    request: Request,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):  
+    print(entry_id)
+    data = await request.json()  # ✅ Await properly
+    content = data.get("content")  # ✅ Extract content
+    print(content)
 
-@router.get("/{day_id}/{entry_id}", response_model=EntryResponse)
-def read_entry(entry_id: int,day_id: int, db: Session = Depends(get_db)):
-    entry = get_entry(db, entry_id, day_id)
+    if not content:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Content cannot be empty"
+        )
+    
+    updated_entry = update_entry_in_db(entry_id, content, db)
+    if not updated_entry:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Entry not found"
+        )
+
+    return {"message": "Entry updated successfully", "entry": updated_entry}
+
+@router.delete("/days/{day_id}/entries/{entry_id}/delete")
+def delete_entry(
+    day_id: int,
+    entry_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    return delete_entry_in_db(day_id, entry_id, db)
+
+@router.post("/users/{user_id}/days/{date}/entries/create")
+async def create_new_entry(
+    user_id: int,
+    date: str,  # Use date instead of day_id
+    request: Request,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    data = await request.json()  
+
+    if not data.get("content"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Content cannot be empty"
+        )
+
+    # ✅ Convert date string to datetime.date object
+    try:
+        day_date = datetime.strptime(date, "%Y-%m-%d").date()
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid date format (use YYYY-MM-DD)"
+        )
+
+    # ✅ Pass the converted date to the function
+    entry = create_entry_in_db(user_id, day_date, data, db)
+    
     if not entry:
-        raise HTTPException(status_code=404, detail="Entry not found")
-    return entry
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Failed to create entry"
+        )
+    
+    return {"message": "Entry created successfully", "entry": entry}
 
-@router.put("/{day_id}/{entry_id}", response_model=EntryResponse)
-def update_entry_endpoint(entry_id: int, entry_data: EntryUpdate, db: Session = Depends(get_db)):
-    entry = update_entry(db, entry_id, entry_data)
-    if not entry:
-        raise HTTPException(status_code=404, detail="Entry not found")
-    return entry
+@router.post("/autocomplete")
+async def autocomplete_entry(
+    request: Request,
+    db: Session = Depends(get_db),
+    # current_user: User = Depends(get_current_user),
+):
+    # Parse the JSON content
+    try:
+        body = await request.json()
+        content = body.get("content")
+        if not content:
+            return {"error": "Content is required for autocomplete."}
+    except Exception as e:
+        return {"error": f"Invalid JSON: {str(e)}"}
 
-@router.delete("/{day_id}/{entry_id}")
-def delete_entry_endpoint(entry_id: int, db: Session = Depends(get_db)):
-    delete_entry(db, entry_id)
-    return {"detail": "Entry deleted"}
+    # Call the suggestion function (assuming it takes content and a limit)
+    suggestions = recommendations(content, 1)
 
-@router.get("/{day_id}", response_model=list[EntryResponse])
-def get_entries(day_id: int, db: Session = Depends(get_db)):
-    entries = get_all_entries(db, day_id)
-    return entries
-
-@router.post("/suggest/{day_id}/{entry_id}", response_model=SuggestionResponse)
-def suggest(day_id: int, entry_id: int, request: SuggestionRequest):
-    # print(f"Day: {day_id}, Entry: {entry_id}, Content: {request.content}")
-    suggested = generate_suggestions(request.content)
-    return SuggestionResponse(suggested=suggested)
-
+    return {"suggestions": suggestions}
 

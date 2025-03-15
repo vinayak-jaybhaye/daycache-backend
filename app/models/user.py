@@ -3,6 +3,7 @@ from sqlalchemy.orm import relationship
 from app.db.base import Base
 from datetime import datetime, timezone
 
+
 class User(Base):
     __tablename__ = "users"
 
