@@ -5,7 +5,7 @@ from app.models.day import Day
 from app.models.user import User
 from app.schemas.day import DayCreate, DayResponse
 from app.core.security import get_current_user
-from app.services.day_services import get_day, get_all_days, summarize_day
+from app.services.day_services import get_day, get_all_days, summarize_day, get_active_days
 from app.services.automate.cache_my_day import cache_my_day
 from app.schemas.day import CacheMyDayRequest
 
@@ -89,3 +89,11 @@ def cache_today(
    response = cache_my_day(request.User, request.myday,request.DiaryAssistant)
    return response
 
+@router.get("/days/get-active-days/{date}")
+def get_active_days_route(
+    date: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    days = get_active_days(date, current_user.id, db)
+    return days

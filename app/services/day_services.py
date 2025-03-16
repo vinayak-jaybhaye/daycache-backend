@@ -1,7 +1,9 @@
 from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.sql import extract
 from app.models.day import Day
 from app.models.entry import Entry
 from app.models.media import Media
+from datetime import datetime
 from app.services.automate.summary_service import generate_summary
 from app.services.cloudinary_services import get_complete_file_url, get_resource_type
 
@@ -58,3 +60,18 @@ def summarize_day(user_id: int, day_id: int, db: Session):
     db.commit()
     db.refresh(day)
     return summary
+
+
+
+def get_active_days(date: str, user_id: int, db: Session):
+    date_obj = datetime.strptime(date, "%Y-%m-%d")
+    days = (
+        db.query(Day)
+        .filter(
+            Day.user_id == user_id,
+            extract('year', Day.date) == date_obj.year,
+            extract('month', Day.date) == date_obj.month,
+        )
+        .all()
+    )
+    return [day.date.strftime("%Y-%m-%d") for day in days]
