@@ -91,8 +91,8 @@ def login(user: UserLogin, db: Session = Depends(get_db)):
         key="access_token",
         value=access_token,
         httponly=True,
-        secure=False,   # True if HTTPS
-        samesite="Lax"  # None if frontend/backend are on different domains
+        secure=True,   # True if HTTPS
+        samesite="None"  # None if frontend/backend are on different domains
     )
     print("Cookie set")
 
@@ -167,7 +167,7 @@ def verify_otp(request: VerifyOTPRequest, db: Session = Depends(get_db)):
         value=access_token,
         httponly=True,
         secure=True,
-        samesite="Lax"
+        samesite="None"
     )
     
     return response
