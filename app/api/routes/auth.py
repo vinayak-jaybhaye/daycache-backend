@@ -92,7 +92,8 @@ def login(user: UserLogin, db: Session = Depends(get_db)):
         value=access_token,
         httponly=True,
         secure=True,   # True if HTTPS
-        samesite="None"  # None if frontend/backend are on different domains
+        samesite="None",  # None if frontend/backend are on different domains
+        path="/",
     )
     print("Cookie set")
 
@@ -103,9 +104,14 @@ def login(user: UserLogin, db: Session = Depends(get_db)):
 @router.post("/logout")
 async def logout():
     response = JSONResponse(content={"message": "Cookie is removed"})
-    response.delete_cookie("access_token")
+    response.delete_cookie(
+        key="access_token",
+        path="/",
+        secure=True,
+        httponly=True,
+        samesite="None"
+    )
     return response
-
 
 
 @router.post("/send-otp", status_code=status.HTTP_200_OK)
