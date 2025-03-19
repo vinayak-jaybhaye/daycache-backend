@@ -81,7 +81,7 @@ def login(user: UserLogin, db: Session = Depends(get_db)):
         "id": db_user.id,
         "email": db_user.email,
         "username": db_user.username,
-        "profile_image": get_complete_file_url(db_user.profile_image),
+        "profile_image": get_complete_file_url(db_user.profile_image) if db_user.profile_image else None,
         "created_at": db_user.created_at.strftime("%Y-%m-%d %H:%M:%S"),
     }
     print(db_user)
