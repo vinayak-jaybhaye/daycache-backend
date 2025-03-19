@@ -7,7 +7,7 @@ app = FastAPI()
 # Add CORS settings
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "https://daycache-fe.vercel.app"],  # Frontend URL
+    allow_origins=["http://localhost:5173", "https://daycache-fe.vercel.app","https://daycache-kendo-react.vercel.app"],  # Frontend URL
     allow_credentials=True,
     allow_methods=["*"],  # Allow all methods
     allow_headers=["*"],  # Allow all headers
