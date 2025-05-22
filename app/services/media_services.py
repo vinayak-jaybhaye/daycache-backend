@@ -21,17 +21,20 @@ def add_media_to_entry(entry_id: int, file: UploadFile, db: Session):
     return new_media
 
 
-def delete_media_from_entry(entry_id: int, media_id: int, db: Session):
+def delete_media_from_entry(media_id: int, db: Session):
     media = (
-        db.query(Media).filter(Media.id == media_id, Media.entry_id == entry_id).first()
+        db.query(Media).filter(Media.id == media_id).first()
     )
 
     if not media:
         raise HTTPException(status_code=404, detail="Media not found")
     
     # delete media from cloudinary
-    delete_from_cloudinary(media.file_url)
+    result = delete_from_cloudinary(media.file_url)
     # file_url format -> "v1741112189/daycache/files/volv8qobfty7rp2vymi9.mp4"
+    # print(result) => {'result': 'ok'}
+    if result.get('result') != 'ok':
+        return False
     db.delete(media)
     db.commit()
     return True

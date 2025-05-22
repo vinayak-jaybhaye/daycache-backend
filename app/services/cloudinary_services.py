@@ -1,6 +1,9 @@
 import cloudinary
 import cloudinary.uploader
+from urllib.parse import urlparse
+import cloudinary.api
 from app.core.config import settings
+import re
 
 cloudinary.config(
     cloud_name=settings.CLOUDINARY_CLOUD_NAME,
@@ -28,11 +31,31 @@ def upload_to_cloudinary(file):
 # https://res.cloudinary.com/dnsp4ojli/video/upload/sp_auto/v1741109273/daycache/images/ewmycbfbsgctuh3fyual.m3u8
 
 
+# def delete_from_cloudinary(file_url: str):
+#     pathlist = file_url.split(".")[0].split("/")[1:]
+#     public_id = "/".join(pathlist)
+#     print(public_id)
+#     # result = cloudinary.uploader.destroy(public_id)
+#     result = cloudinary.api.delete_resources(public_id)
+#     print("delete result", result)
+#     return result
+
 def delete_from_cloudinary(file_url: str):
-    pathlist = file_url.split(".")[0].split("/")[1:]
-    public_id = "/".join(pathlist)
-    print(public_id)
-    result = cloudinary.uploader.destroy(public_id)
+    # Extract the path from the URL
+    parsed_url = urlparse(file_url)
+    resource_type = get_resource_type(file_url)
+    path = parsed_url.path  # e.g. /demo/image/upload/v1670000000/folder/my_image.jpg
+
+    # Remove version part and extension
+    match = re.search(r"/(?:v\d+/)?(.+?)\.\w+$", path)
+    if not match:
+        raise ValueError("Invalid Cloudinary URL format")
+
+    public_id = match.group(1)  # e.g. folder/my_image
+    print("public ID:", public_id)
+
+    # Delete from Cloudinary
+    result = cloudinary.uploader.destroy(public_id, resource_type=resource_type)
     print("delete result", result)
     return result
 

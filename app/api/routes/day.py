@@ -1,5 +1,7 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
+from typing import Optional
+from datetime import date
 from app.db.session import get_db
 from app.models.day import Day
 from app.models.user import User
@@ -72,10 +74,11 @@ def get_user_day(
 @router.get("/users/{user_id}/days")
 def get_user_days(
     user_id: int,
+    last_date: Optional[date] = None,  # format: YYYY-MM-DD
+    limit: int = 10,
     db: Session = Depends(get_db),
-    # current_user: User = Depends(get_current_user),
 ):
-    days = get_all_days(user_id, db)
+    days = get_all_days(user_id, db, last_date=last_date, limit=limit)
     return days
 
 @router.post("/users/{user_id}/days/{day_id}/cache-my-day")

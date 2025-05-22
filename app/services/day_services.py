@@ -1,9 +1,11 @@
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy.sql import extract
+from sqlalchemy import desc
 from app.models.day import Day
 from app.models.entry import Entry
 from app.models.media import Media
-from datetime import datetime
+from datetime import datetime, date
+from typing import Optional
 from app.services.automate.summary_service import generate_summary
 from app.services.cloudinary_services import get_complete_file_url, get_resource_type
 
@@ -38,9 +40,13 @@ def get_day(user_id: int, date: str, db: Session):
     }
 
 
-def get_all_days(user_id: int, db: Session):
-    days = db.query(Day).filter(Day.user_id == user_id).all()
-    return days
+def get_all_days(user_id: int, db: Session, last_date: Optional[date] = None, limit: int = 10):
+    query = db.query(Day).filter(Day.user_id == user_id)
+
+    if last_date:
+        query = query.filter(Day.date < last_date)  # get days before last_date
+
+    return query.order_by(desc(Day.date)).limit(limit).all()
 
 def summarize_day(user_id: int, day_id: int, db: Session):
     day = db.query(Day).filter(Day.id == day_id, Day.user_id == user_id).first()
