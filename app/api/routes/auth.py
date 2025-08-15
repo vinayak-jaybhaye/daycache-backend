@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Response
+from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 from app.schemas.user import UserCreate, UserLogin
@@ -10,9 +10,17 @@ from app.services.user_services import create_user as service_create_user
 from app.services.otp_service import get_otp, delete_otp, store_otp
 from app.services.email_services import send_email
 import random
+from app.core.config import settings
 from app.services.cloudinary_services import get_complete_file_url
 router = APIRouter()
 
+from pydantic import BaseModel
+from google.oauth2 import id_token
+from google.auth.transport import requests
+
+GOOGLE_CLIENT_ID = settings.GOOGLE_CLIENT_ID
+SECRET_KEY = settings.SECRET_KEY
+ALGORITHM = "HS256"
 
 @router.post("/signup", status_code=status.HTTP_201_CREATED)
 def signup(user: UserCreate, otp: str = None, db: Session = Depends(get_db)):
@@ -25,7 +33,6 @@ def signup(user: UserCreate, otp: str = None, db: Session = Depends(get_db)):
                status_code=status.HTTP_400_BAD_REQUEST,
                detail="Invalid or expired OTP",
            )
-
 
         # Step 2: OTP is valid → Create user
         created_user = service_create_user(db, user)
@@ -64,8 +71,6 @@ def signup(user: UserCreate, otp: str = None, db: Session = Depends(get_db)):
         "message": "OTP sent to your email. Please verify to complete signup.",
     }
 
-
-
 # Login
 @router.post("/login")
 def login(user: UserLogin, db: Session = Depends(get_db)):
@@ -84,9 +89,7 @@ def login(user: UserLogin, db: Session = Depends(get_db)):
         "profile_image": get_complete_file_url(db_user.profile_image) if db_user.profile_image else None,
         "created_at": db_user.created_at.strftime("%Y-%m-%d %H:%M:%S"),
     }
-    print(db_user)
     response = JSONResponse(content={"message": "Cookie is set", "user": user_data})
-    print(access_token)
     response.set_cookie(
         key="access_token",
         value=access_token,
@@ -95,10 +98,8 @@ def login(user: UserLogin, db: Session = Depends(get_db)):
         samesite="None",  # None if frontend/backend are on different domains
         path="/",
     )
-    print("Cookie set")
 
     return response
-
 
 # Logout
 @router.post("/logout")
@@ -112,7 +113,6 @@ async def logout():
         samesite="None"
     )
     return response
-
 
 @router.post("/send-otp", status_code=status.HTTP_200_OK)
 def send_otp(request: SendOTPRequest, db: Session = Depends(get_db)):
@@ -129,12 +129,26 @@ def send_otp(request: SendOTPRequest, db: Session = Depends(get_db)):
     # Send OTP using email service
     send_email(
         request.email,
-        "Verify Your Email",
-        f"Your OTP is: {otp}",
+        "Verify your DayCache account",
+        f"""Hi {request.email},
+
+        Thank you for signing up for DayCache!  
+        To keep your account secure, please verify your email address.
+
+        Your One-Time Password (OTP) is:
+
+        {otp}
+
+        This code will expire in 10 minutes. If you did not request this, please ignore this email.
+
+        Welcome to DayCache — where your days are remembered securely.
+
+        Best,
+        The DayCache Team
+        """
     )
 
     return {"message": "OTP sent to your email"}
-
 
 @router.post("/verify-otp", status_code=status.HTTP_201_CREATED)
 def verify_otp(request: VerifyOTPRequest, db: Session = Depends(get_db)):
@@ -152,8 +166,6 @@ def verify_otp(request: VerifyOTPRequest, db: Session = Depends(get_db)):
 
     # Remove OTP after successful verification
     delete_otp(request.email)
-
-
 
     # Set token in cookie
     response = JSONResponse(
@@ -177,3 +189,52 @@ def verify_otp(request: VerifyOTPRequest, db: Session = Depends(get_db)):
     )
     
     return response
+
+class TokenRequest(BaseModel):
+    token: str
+
+@router.post("/google")
+async def auth_google(request: TokenRequest, db: Session = Depends(get_db)):
+    try:
+        # Verify Google ID token
+        idinfo = id_token.verify_oauth2_token(
+            request.token,
+            requests.Request(),
+            GOOGLE_CLIENT_ID
+        )
+
+        # Extract user info
+        user_info = {
+            "sub": idinfo["sub"],  # Google unique user ID
+            "email": idinfo["email"],
+            "name": idinfo.get("name"),
+            "profile_image": idinfo.get("picture")
+        }
+
+        # Check or create user in DB
+        db_user = db.query(User).filter(User.email == idinfo["email"]).first()
+        if not db_user:
+            user = UserCreate(
+            username=user_info['name'],
+            email=user_info["email"],
+            profile_image=user_info['profile_image'],
+            password="--"
+            )
+            db_user = service_create_user(db, user)
+
+        # Create JWT
+        access_token = create_access_token({"sub": db_user.email, "id": db_user.id})
+        # Return response with HttpOnly cookie
+        response = JSONResponse(content={"user": user_info})
+        response.set_cookie(
+            key="access_token",
+            value=access_token,
+            httponly=True,
+            secure=True,
+            samesite="None",
+            path="/",
+        )
+        return response
+
+    except ValueError:
+        raise HTTPException(status_code=401, detail="Invalid Google token")

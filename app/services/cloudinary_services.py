@@ -23,23 +23,6 @@ def upload_to_cloudinary(file):
     print(trimmed_url)
     return trimmed_url
 
-
-# https://res.cloudinary.com/dnsp4ojli/image/upload/v1741105349/ln5dmftxq9obaxydvq7l.jpg
-# https://res.cloudinary.com/dnsp4ojli/video/upload/v1741108818/v1dyhuc6hmgmr5mlwf1a.mp4
-# https://res.cloudinary.com/dnsp4ojli/video/upload/v1741109025/sk2nz9lme4kkfhmlvkd0.mp4
-
-# https://res.cloudinary.com/dnsp4ojli/video/upload/sp_auto/v1741109273/daycache/images/ewmycbfbsgctuh3fyual.m3u8
-
-
-# def delete_from_cloudinary(file_url: str):
-#     pathlist = file_url.split(".")[0].split("/")[1:]
-#     public_id = "/".join(pathlist)
-#     print(public_id)
-#     # result = cloudinary.uploader.destroy(public_id)
-#     result = cloudinary.api.delete_resources(public_id)
-#     print("delete result", result)
-#     return result
-
 def delete_from_cloudinary(file_url: str):
     # Extract the path from the URL
     parsed_url = urlparse(file_url)

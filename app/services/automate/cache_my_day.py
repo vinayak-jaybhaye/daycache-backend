@@ -25,7 +25,6 @@ def cache_my_day(user: str, myday: str, dairy_assistant: str) -> dict:
         # Call AI model
         model = genai.GenerativeModel("models/gemini-2.0-flash")
         response = model.generate_content(prompt).text.strip()
-        # print(response)
 
         # parse response
         parsed = extract_and_parse_json(response)

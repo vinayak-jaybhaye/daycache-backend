@@ -6,10 +6,10 @@ from datetime import datetime
 
 
 def create_entry_in_db(user_id: int, date: datetime.date, entry_data: dict, db: Session):
-    # ✅ Check if the day exists
+    # Check if the day exists
     day = db.query(Day).filter(Day.date == date, Day.user_id == user_id).first()
 
-    # ✅ If day doesn't exist, create it
+    # If day doesn't exist, create it
     if not day:
         day = Day(
             date=date,
@@ -20,7 +20,7 @@ def create_entry_in_db(user_id: int, date: datetime.date, entry_data: dict, db: 
         db.commit()
         db.refresh(day)
 
-    # ✅ Create the entry linked to the day
+    # Create the entry linked to the day
     entry = Entry(
         day_id=day.id,  # Link entry to the created/found day
         location=entry_data.get("location"),

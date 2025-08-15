@@ -13,7 +13,6 @@ from app.schemas.day import CacheMyDayRequest
 
 router = APIRouter()
 
-
 @router.post("/create-day")
 def create_day(
     day: DayCreate,
@@ -36,15 +35,12 @@ def create_day(
     db.refresh(new_day)
     return new_day
 
-
 @router.get("/get-days", response_model=list[DayResponse])
 def get_days(
     db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
 ):
     days = db.query(Day).filter(Day.user_id == current_user.id).all()
-    print(days)
     return days
-
 
 @router.post("/users/{user_id}/days/{day_id}/summarize")
 def summarize(
@@ -56,20 +52,17 @@ def summarize(
     summary = summarize_day(user_id,day_id, db)
     return summary
 
-
 @router.get("/users/{user_id}/days/{date}")
 def get_user_day(
     user_id: int,
     date: str,
     db: Session = Depends(get_db),
-    # current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
 ):
     day = get_day(user_id, date, db)
-    print(day)
     if not day:
         raise HTTPException(status_code=404, detail="Day not found")
     return day
-
 
 @router.get("/users/{user_id}/days")
 def get_user_days(

@@ -1,6 +1,8 @@
-from app.models.user import User
-from app.models.day import Day
-from app.models.entry import Entry
-from app.models.media import Media
+from sqlalchemy.orm import declarative_base
 
-__all__ = ["User", "Day", "Entry", "Media"]
+Base = declarative_base()
+
+from .user import User
+from .day import Day
+from .entry import Entry
+from .media import Media

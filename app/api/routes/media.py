@@ -24,6 +24,6 @@ def add_media(
     entry_id: int,
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
-    # current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user)
 ):
     return add_media_to_entry(entry_id, file, db)

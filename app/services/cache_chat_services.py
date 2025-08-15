@@ -1,5 +1,4 @@
 import google.generativeai as genai
-import requests
 import json
 import re
 from datetime import date, datetime
@@ -11,15 +10,14 @@ from app.schemas.cache_chat_context import ContextQuery
 from app.models.entry import Entry
 from app.models.day import Day
 from app.core.config import settings
-
-HF_API_TOKEN = settings.HUGGINGFACE_API_KEY
-HF_CHAT_API_URL = (
-    "https://api-inference.huggingface.co/models/mistralai/Mixtral-8x7B-Instruct-v0.1"
-)
-REQUEST_TIMEOUT = 15  # seconds
+import logging
 
 GEMINI_API_KEY = settings.GEMINI_API_KEY
+REQUEST_TIMEOUT = 15
+genai.configure(api_key=GEMINI_API_KEY)
 
+logger = logging.getLogger(__name__)
+model = genai.GenerativeModel("gemini-1.5-flash")
 
 def extract_json_from_llm_response(response_data: str) -> Tuple[Set[str], Set[date]]:
     locations = set()
@@ -30,7 +28,6 @@ def extract_json_from_llm_response(response_data: str) -> Tuple[Set[str], Set[da
         print("No JSON found in response")
         return set(), set()
     json_str = json_match.group(0)
-    
 
     try:
         response_json = json.loads(json_str)
@@ -41,41 +38,45 @@ def extract_json_from_llm_response(response_data: str) -> Tuple[Set[str], Set[da
         return set(), set()
     return locations, dates
 
-
 def extract_locations_and_dates_from_llm(text: str) -> Tuple[Set[str], Set[date]]:
-    genai.configure(api_key=GEMINI_API_KEY)
-
+    """
+    Extracts city names and dates from the given text using Gemini API.
+    Interprets relative dates like 'today' or 'yesterday'.
+    
+    Returns:
+        locations (set[str])
+        dates (set[date])
+    """
     prompt = f"""
-            Your only task is to extract city names and dates (interpret relative dates eg. yeseterday, today based on today's date ({datetime.today().date()})) from the provided text. 
-            return the json object in the following format:
-            {{
-              "locations": ["city_1", "city_2"],
-              "dates": ["YYYY-MM-DD", "YYYY-MM-DD"]
-            }}
+    Your only task is to extract city names and dates (interpret relative dates 
+    e.g., yesterday, today based on today's date ({datetime.today().date()})) 
+    from the provided text. Return a JSON object in the format:
 
-            ### Input Text:
-            {text}
-        """
+    {{
+      "locations": ["city_1", "city_2"],
+      "dates": ["YYYY-MM-DD", "YYYY-MM-DD"]
+    }}
+
+    ### Input Text:
+    {text}
+    """
 
     try:
-        model = genai.GenerativeModel("gemini-1.5-flash")
         response = model.generate_content(prompt)
-
         if not response or not response.text:
-            print("Empty response from Gemini API")
+            logger.warning("Empty response from Gemini API")
             return set(), set()
 
-        print(response.text)
+        logger.debug(f"LLM response: {response.text}")
+        locations, dates = extract_json_from_llm_response(response.text)
+        return locations, dates
 
-        [locations, dates] = extract_json_from_llm_response(response.text)
-        # print(f"Extracted locations: {locations}, dates: {dates}")
-
-    except (json.JSONDecodeError, KeyError, Exception) as e:
-        print(f"Error during model call or parsing: {e}")
+    except (json.JSONDecodeError, KeyError) as e:
+        logger.error(f"JSON parsing error: {e}")
         return set(), set()
-
-    return locations, dates
-
+    except Exception as e:
+        logger.error(f"Error during Gemini API call: {e}")
+        return set(), set()
 
 def fetch_context(user_id: int, locations: List[str], dates: List[date], db: Session) -> List[str]:
     if not dates:
@@ -96,7 +97,6 @@ def fetch_context(user_id: int, locations: List[str], dates: List[date], db: Ses
     results = [entry.content for entry in query.distinct().limit(100).all()]
 
     return results
-
 
 def add_context(user_id: int, question: str, db: Session) -> str:
     [locations, dates] = extract_locations_and_dates_from_llm(question)

@@ -27,6 +27,8 @@ def hash_password(password: str) -> str:
 
 # Verify password
 def verify_password(plain_password: str, hashed_password: str) -> bool:
+    if(pwd_context.verify("--", hashed_password)):
+        return False
     return pwd_context.verify(plain_password, hashed_password)
 
 # Create JWT access token
@@ -64,37 +66,10 @@ def decode_access_token(token: str) -> dict:
 # OAuth2 scheme for token extraction
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
 
-# # Get current authenticated user
-# def get_current_user(
-#     token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)
-# ) -> User:
-#     payload = decode_access_token(token)
-#     email: Optional[str] = payload.get("sub")
-
-#     if not email:
-#         raise HTTPException(
-#             status_code=status.HTTP_401_UNAUTHORIZED,
-#             detail="Invalid token payload",
-#             headers={"WWW-Authenticate": "Bearer"},
-#         )
-
-#     user = db.query(User).filter(User.email == email).first()
-
-#     if user is None:
-#         raise HTTPException(
-#             status_code=status.HTTP_404_NOT_FOUND,
-#             detail="User not found",
-#         )
-
-#     return user
-
-
-
 def get_current_user(
     access_token: str = Cookie(...),
     db: Session = Depends(get_db)
 ) -> User:
-    print("Access Token:", access_token)
     if not access_token:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -104,7 +79,6 @@ def get_current_user(
 
     try:
         payload = decode_access_token(access_token)
-        print("Payload:", payload.get("sub"))
         email: Optional[str] = payload.get("sub")
 
         if not email:

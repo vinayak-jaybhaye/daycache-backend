@@ -1,4 +1,6 @@
-from app.core.redis import redis_client
+from app.db.redis import get_redis_client
+
+redis_client = get_redis_client()
 
 def store_otp(email: str, otp: str, expiry_seconds: int = 300):
     print(f"otp::store:{email}")

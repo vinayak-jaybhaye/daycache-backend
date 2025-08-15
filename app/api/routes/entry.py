@@ -9,17 +9,15 @@ from app.services.entry_services import create_entry_in_db, update_entry_in_db, 
 
 router = APIRouter()
 
-@router.patch("/entries/{entry_id}/update")  # ✅ Fixed path
+@router.patch("/entries/{entry_id}/update")  
 async def update_entry(
     entry_id: int,
     request: Request,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):  
-    print(entry_id)
-    data = await request.json()  # ✅ Await properly
-    content = data.get("content")  # ✅ Extract content
-    print(content)
+    data = await request.json()  
+    content = data.get("content")  
 
     if not content:
         raise HTTPException(
@@ -61,7 +59,7 @@ async def create_new_entry(
             detail="Content cannot be empty"
         )
 
-    # ✅ Convert date string to datetime.date object
+    # Convert date string to datetime.date object
     try:
         day_date = datetime.strptime(date, "%Y-%m-%d").date()
     except ValueError:
@@ -70,7 +68,7 @@ async def create_new_entry(
             detail="Invalid date format (use YYYY-MM-DD)"
         )
 
-    # ✅ Pass the converted date to the function
+    # Pass the converted date to the function
     entry = create_entry_in_db(user_id, day_date, data, db)
     
     if not entry:
@@ -85,7 +83,7 @@ async def create_new_entry(
 async def autocomplete_entry(
     request: Request,
     db: Session = Depends(get_db),
-    # current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
 ):
     # Parse the JSON content
     try:
@@ -96,7 +94,6 @@ async def autocomplete_entry(
     except Exception as e:
         return {"error": f"Invalid JSON: {str(e)}"}
 
-    # Call the suggestion function (assuming it takes content and a limit)
     suggestions = recommendations(content, 1)
 
     return {"suggestions": suggestions}

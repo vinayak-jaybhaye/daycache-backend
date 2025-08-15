@@ -1,6 +1,6 @@
 from sqlalchemy import Column, BigInteger, TIMESTAMP, Date, Text, ForeignKey
 from sqlalchemy.orm import relationship
-from app.db.base import Base
+from . import Base
 from datetime import datetime, timezone
 
 
@@ -8,9 +8,7 @@ class Day(Base):
     __tablename__ = "days"
 
     id = Column(BigInteger, primary_key=True, index=True)
-    user_id = Column(
-        BigInteger, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
-    )
+    user_id = Column( BigInteger, ForeignKey("users.id", ondelete="CASCADE"), nullable=False )
     date = Column(Date, nullable=False)
     latest_summary = Column(Text, nullable=True)
     created_at = Column(TIMESTAMP, default=lambda: datetime.now(timezone.utc))
