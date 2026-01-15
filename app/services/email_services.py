@@ -1,27 +1,19 @@
-## Using SMTP
-import smtplib
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
-from app.core.config import Settings
+from app.integrations.smtp import send_email
+from app.utils.template_renderer import render_template
+from app.services.redis_otp_service import VERIFICATION_TTL
 
-SMTP_SERVER = Settings().SMTP_SERVER
-SMTP_PORT =  Settings().SMTP_PORT
-SMTP_USERNAME = Settings().SMTP_USERNAME
-SMTP_PASSWORD = Settings().SMTP_PASSWORD
+def send_signup_otp(email: str, otp: str):
+    body = render_template(
+        "emails/otp_verification.txt",
+        {
+            "email": email,
+            "otp": otp,
+            "expiry": VERIFICATION_TTL // 60,  # minutes
+        },
+    )
 
-def send_email(to_email: str, subject: str, body: str):
-    msg = MIMEMultipart()
-    msg["From"] = SMTP_USERNAME
-    msg["To"] = to_email
-    msg["Subject"] = subject
-
-    msg.attach(MIMEText(body, "plain"))
-
-    try:
-        with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
-            server.starttls()
-            server.login(SMTP_USERNAME, SMTP_PASSWORD)
-            server.sendmail(SMTP_USERNAME, to_email, msg.as_string())
-            print("Email sent successfully!")
-    except Exception as e:
-        print(f"Error sending email: {e}")
+    send_email(
+        to_email=email,
+        subject="Verify your DayCache account",
+        body=body,
+    )

@@ -1,57 +1,108 @@
 from sqlalchemy.orm import Session
-from app.models.entry import Entry
-from app.schemas.entry import EntryCreate, EntryUpdate
-from app.models.day import Day
-from datetime import datetime
+from fastapi import HTTPException
+from typing import Optional
+from datetime import date
+from app.db.models import Entry
+from app.schemas.entry import EntryCreate, EntryUpdate, EntryResponse
+from app.db.models import User
 
-
-def create_entry_in_db(user_id: int, date: datetime.date, entry_data: dict, db: Session):
-    # Check if the day exists
-    day = db.query(Day).filter(Day.date == date, Day.user_id == user_id).first()
-
-    # If day doesn't exist, create it
-    if not day:
-        day = Day(
-            date=date,
-            user_id=user_id,
-            latest_summary=""
-        )
-        db.add(day)
-        db.commit()
-        db.refresh(day)
-
-    # Create the entry linked to the day
+# Create a new entry
+def create_entry(
+    db: Session,
+    user: User,
+    content: str,
+    entry_date: date,
+) -> Entry:
     entry = Entry(
-        day_id=day.id,  # Link entry to the created/found day
-        location=entry_data.get("location"),
-        content=entry_data.get("content"),
-        tags=entry_data.get("tags"),
+        user_id=user.id,
+        content=content,
+        entry_date=entry_date,
     )
+
     db.add(entry)
     db.commit()
     db.refresh(entry)
+    return entry
+
+# Get a specific entry by ID
+def get_entry(
+    db: Session,
+    user: User,
+    entry_id: int,
+) -> Entry:
+    entry = (
+        db.query(Entry)
+        .filter(
+            Entry.id == entry_id,
+            Entry.user_id == user.id,
+        )
+        .first()
+    )
+
+    if not entry:
+        raise HTTPException(status_code=404, detail="Entry not found")
     
     return entry
 
 
-def update_entry_in_db(entry_id: int, content: str, db: Session):
-    print(entry_id, content)
-    entry = db.query(Entry).filter(Entry.id == entry_id).first()
-    if entry:
-        entry.content = content
-        db.commit()
-        db.refresh(entry)
-        return entry
-    return None
+# Update an existing entry
+def update_entry(
+    db: Session,
+    user: User,
+    entry_id: int,
+    content: str,
+) -> Entry:
+    entry = get_entry(db, user, entry_id)
 
-def delete_entry_in_db(day_id: int, entry_id: int, db: Session):
-    entry = db.query(Entry).filter(Entry.id == entry_id and Entry.day_id == day_id).first()
-    if entry:
-        db.delete(entry)
-        db.commit()
-        return True
-    return False
+    entry.content = content
 
-def get_all_entries(user_id: int,day_id: int, db: Session):
-    # add logic to prevent users from accessing other users' entries
-    return db.query(Entry).filter(Entry.day_id == day_id).all()
+    db.commit()
+    db.refresh(entry)
+    return entry
+
+# Delete an entry
+def delete_entry(
+    db: Session,
+    user: User,
+    entry_id: int,
+) -> None:
+    entry = get_entry(db, user, entry_id)
+
+    db.delete(entry)
+    db.commit()
+
+
+# Search entries with optional text and date filters
+def search_entries(
+    db: Session,
+    user: User,
+    q: Optional[str] = None,
+    start_date: Optional[date] = None,
+    end_date: Optional[date] = None,
+    limit: int = 20,
+    offset: int = 0,
+):
+    query = db.query(Entry).filter(Entry.user_id == user.id)
+
+    # text search
+    if q:
+        query = query.filter(
+            Entry.content.ilike(f"%{q}%")
+        )
+    
+    # date filters
+    if start_date:
+        start_dt = datetime.combine(start_date, time.min)
+        query = query.filter(Entry.created_at >= start_dt)
+    
+    if end_date:
+        end_dt = datetime.combine(end_date, time.max),
+        query = query.filter(Entry.created_at <= end_dt)
+
+    return (
+        query
+        .order_by(Entry.created_at.desc())
+        .offset(offset)
+        .limit(limit)
+        .all()
+    )

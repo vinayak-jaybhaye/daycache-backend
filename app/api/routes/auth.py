@@ -1,240 +1,87 @@
-from fastapi import APIRouter, Depends, HTTPException, status
-from fastapi.responses import JSONResponse
-from sqlalchemy.orm import Session
-from app.schemas.user import UserCreate, UserLogin
-from app.schemas.auth import VerifyOTPRequest, SendOTPRequest
+from fastapi import APIRouter, Depends, Response
 from app.db.session import get_db
-from app.models.user import User
-from app.core.security import create_access_token, verify_password
-from app.services.user_services import create_user as service_create_user
-from app.services.otp_service import get_otp, delete_otp, store_otp
-from app.services.email_services import send_email
-import random
-from app.core.config import settings
-from app.services.cloudinary_services import get_complete_file_url
+from sqlalchemy.orm import Session
+
+# schemas
+from app.schemas.auth import (
+    SignupRequest,
+    GetOTPRequest,
+    LoginRequest,
+    GoogleAuthRequest,
+)
+from app.services.auth_service import (
+    verify_and_signup,
+    verify_and_login,
+    verify_and_send_otp,
+    authenticate_google_user,
+)
+
+from app.core.security import set_auth_cookie, delete_auth_cookie
+
 router = APIRouter()
 
-from pydantic import BaseModel
-from google.oauth2 import id_token
-from google.auth.transport import requests
-
-GOOGLE_CLIENT_ID = settings.GOOGLE_CLIENT_ID
-SECRET_KEY = settings.SECRET_KEY
-ALGORITHM = "HS256"
-
-@router.post("/signup", status_code=status.HTTP_201_CREATED)
-def signup(user: UserCreate, otp: str = None, db: Session = Depends(get_db)):
-    if otp is not None:
-        # Step 1: Validate OTP
-        stored_otp = get_otp(user.email)
-
-        if stored_otp is None or stored_otp != otp:
-           raise HTTPException(
-               status_code=status.HTTP_400_BAD_REQUEST,
-               detail="Invalid or expired OTP",
-           )
-
-        # Step 2: OTP is valid → Create user
-        created_user = service_create_user(db, user)
-        access_token = create_access_token({"sub": created_user.email, "id": created_user.id})
-        
-        # Remove OTP from Redis after successful signup
-        delete_otp(user.email)
-
-        return {
-            "message": "User created successfully",
-            "user_id": created_user.id,
-            "access_token": access_token,
-            "token_type": "bearer",
-        }
-
-    # Step 3: OTP is not provided → Send OTP
-    existing_user = db.query(User).filter(User.email == user.email).first()
-    if existing_user:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="User with this email already exists",
-        )
-
-    # Generate OTP and store in Redis (5 minutes expiry)
-    otp = str(random.randint(100000, 999999))
-    store_otp(user.email, otp, 300)
-
-    # TODO: Send OTP via email (use a mail service)
-    send_email(
-        user.email,
-        "Verify your email for signup",
-        f"Your OTP for DayCache verification is: {otp}",
+# email, password, otp -> verify otp, create user, return token
+@router.post("/signup")
+def signup(
+    data: SignupRequest,
+    response: Response,
+    db: Session = Depends(get_db),
+):
+    user = verify_and_signup(
+        db=db,
+        email=data.email,
+        password=data.password,
+        otp=data.otp,
     )
 
-    return {
-        "message": "OTP sent to your email. Please verify to complete signup.",
-    }
+    set_auth_cookie(response, user)
+    return {"message": "Signup successful"}
 
-# Login
+
+# email password -> verify, return token
 @router.post("/login")
-def login(user: UserLogin, db: Session = Depends(get_db)):
-    db_user = db.query(User).filter(User.email == user.email).first()
-
-    if not db_user or not verify_password(user.password, db_user.password_hash):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid email or password"
-        )
-    access_token = create_access_token({"sub": db_user.email, "id": db_user.id})
-    # Set cookie in response
-    user_data = {
-        "id": db_user.id,
-        "email": db_user.email,
-        "username": db_user.username,
-        "profile_image": get_complete_file_url(db_user.profile_image) if db_user.profile_image else None,
-        "created_at": db_user.created_at.strftime("%Y-%m-%d %H:%M:%S"),
-    }
-    response = JSONResponse(content={"message": "Cookie is set", "user": user_data})
-    response.set_cookie(
-        key="access_token",
-        value=access_token,
-        httponly=True,
-        secure=True,   # True if HTTPS
-        samesite="None",  # None if frontend/backend are on different domains
-        path="/",
+def login(
+    data: LoginRequest,
+    response: Response,
+    db: Session = Depends(get_db),
+):
+    user = verify_and_login(
+        db=db,
+        email=data.email,
+        password=data.password,
     )
+    set_auth_cookie(response, user)
+    return {"message": "Login successful"}
 
-    return response
+# verify google token -> get/create user, return token
+@router.post("/google-auth")
+def google_auth(
+    data: GoogleAuthRequest,
+    response: Response,
+    db: Session = Depends(get_db),
+):
+    user = authenticate_google_user(
+        db=db,
+        google_token=data.google_token,
+    )
+    set_auth_cookie(response, user)
+    return {"message": "Google authentication successful"}
 
-# Logout
+# token -> invalidate token
 @router.post("/logout")
-async def logout():
-    response = JSONResponse(content={"message": "Cookie is removed"})
-    response.delete_cookie(
-        key="access_token",
-        path="/",
-        secure=True,
-        httponly=True,
-        samesite="None"
+def logout(response: Response):
+    delete_auth_cookie(response)
+    return {"message": "Logout successful"}
+
+# email, password -> sends otp
+@router.post("/get-otp")
+def get_otp(
+    data: GetOTPRequest,
+    db: Session = Depends(get_db),
+):
+    verify_and_send_otp(
+        db=db,
+        email=data.email,
+        password=data.password,
     )
-    return response
-
-@router.post("/send-otp", status_code=status.HTTP_200_OK)
-def send_otp(request: SendOTPRequest, db: Session = Depends(get_db)):
-    existing_user = db.query(User).filter(User.email == request.email).first()
-    if existing_user:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="User with this email already exists",
-        )
-
-    otp = str(random.randint(100000, 999999))
-    store_otp(request.email, otp, 300)  # 5 minutes expiry
-    
-    # Send OTP using email service
-    send_email(
-        request.email,
-        "Verify your DayCache account",
-        f"""Hi {request.email},
-
-        Thank you for signing up for DayCache!  
-        To keep your account secure, please verify your email address.
-
-        Your One-Time Password (OTP) is:
-
-        {otp}
-
-        This code will expire in 10 minutes. If you did not request this, please ignore this email.
-
-        Welcome to DayCache — where your days are remembered securely.
-
-        Best,
-        The DayCache Team
-        """
-    )
-
-    return {"message": "OTP sent to your email"}
-
-@router.post("/verify-otp", status_code=status.HTTP_201_CREATED)
-def verify_otp(request: VerifyOTPRequest, db: Session = Depends(get_db)):
-    stored_otp = get_otp(request.email)
-    if not stored_otp or stored_otp != request.otp:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid or expired OTP"
-        )
-
-    # Create user (pass username, email, and password)
-    user = UserCreate(username=request.username, email=request.email, password=request.password)
-    created_user = service_create_user(db, user)
-    access_token = create_access_token({"sub": created_user.email, "id": created_user.id})
-
-    # Remove OTP after successful verification
-    delete_otp(request.email)
-
-    # Set token in cookie
-    response = JSONResponse(
-        content={
-            "access_token": access_token,
-            "token_type": "bearer",
-            "user": {
-                "id": created_user.id,
-                "email": created_user.email,
-                "username": created_user.username,
-                "created_at": created_user.created_at.strftime("%Y-%m-%d %H:%M:%S"),
-            }
-        }
-    )
-    response.set_cookie(
-        key="access_token",
-        value=access_token,
-        httponly=True,
-        secure=True,
-        samesite="None"
-    )
-    
-    return response
-
-class TokenRequest(BaseModel):
-    token: str
-
-@router.post("/google")
-async def auth_google(request: TokenRequest, db: Session = Depends(get_db)):
-    try:
-        # Verify Google ID token
-        idinfo = id_token.verify_oauth2_token(
-            request.token,
-            requests.Request(),
-            GOOGLE_CLIENT_ID
-        )
-
-        # Extract user info
-        user_info = {
-            "sub": idinfo["sub"],  # Google unique user ID
-            "email": idinfo["email"],
-            "name": idinfo.get("name"),
-            "profile_image": idinfo.get("picture")
-        }
-
-        # Check or create user in DB
-        db_user = db.query(User).filter(User.email == idinfo["email"]).first()
-        if not db_user:
-            user = UserCreate(
-            username=user_info['name'],
-            email=user_info["email"],
-            profile_image=user_info['profile_image'],
-            password="--"
-            )
-            db_user = service_create_user(db, user)
-
-        # Create JWT
-        access_token = create_access_token({"sub": db_user.email, "id": db_user.id})
-        # Return response with HttpOnly cookie
-        response = JSONResponse(content={"user": user_info})
-        response.set_cookie(
-            key="access_token",
-            value=access_token,
-            httponly=True,
-            secure=True,
-            samesite="None",
-            path="/",
-        )
-        return response
-
-    except ValueError:
-        raise HTTPException(status_code=401, detail="Invalid Google token")
+    return {"message": "OTP sent successfully"}

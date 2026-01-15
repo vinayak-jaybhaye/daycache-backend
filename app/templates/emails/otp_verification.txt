@@ -1,0 +1,9 @@
+Hi {{ email }},
+
+Your One-Time Password for DayCache Account Verification is:
+
+{{ otp }}
+
+This code is valid for the next {{ expiry }} minutes.
+
+If you did not request this code, please ignore this email.

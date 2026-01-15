@@ -1,95 +1,91 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy.orm import Session
-from typing import Optional
+from fastapi import APIRouter, Depends, Query
 from datetime import date
+from sqlalchemy.orm import Session
+from typing import Optional, List, Union
 from app.db.session import get_db
-from app.models.day import Day
-from app.models.user import User
-from app.schemas.day import DayCreate, DayResponse
-from app.core.security import get_current_user
-from app.services.day_services import get_day, get_all_days, summarize_day, get_active_days
-from app.services.automate.cache_my_day import cache_my_day
-from app.schemas.day import CacheMyDayRequest
+from app.core.dependencies import get_current_user
+from app.db.models.user import User
+from app.services.day_service import (
+    list_active_days,
+    get_day_entries,
+    delete_day_and_entries,
+    delete_day_metadata,
+    get_day_metadata,
+)
+from app.schemas.day import ListDaysQuery, DayResponse, DayMetadata
 
 router = APIRouter()
 
-@router.post("/create-day")
-def create_day(
-    day: DayCreate,
+# user, range -> active days list (derived from entries)
+@router.get(
+    "/",
+    response_model=Union[List[date], List[DayResponse]],
+    response_model_exclude_none=True
+)
+def list_days(
+    query: ListDaysQuery = Depends(),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    user: User = Depends(get_current_user),
 ):
-    existing_day = (
-        db.query(Day)
-        .filter(Day.user_id == current_user.id, Day.date == day.date)
-        .first()
+    return list_active_days(
+        db=db,
+        user=user,
+        start_date=query.start_date,
+        end_date=query.end_date,
+        limit=query.limit,
+        offset=query.offset,
+        include_metadata=query.include_metadata
     )
-    if existing_day:
-        raise HTTPException(status_code=400, detail="Day already exists for this date")
 
-    new_day = Day(
-        user_id=current_user.id, date=day.date, latest_summary=day.latest_summary
-    )
-    db.add(new_day)
-    db.commit()
-    db.refresh(new_day)
-    return new_day
-
-@router.get("/get-days", response_model=list[DayResponse])
-def get_days(
-    db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
-):
-    days = db.query(Day).filter(Day.user_id == current_user.id).all()
-    return days
-
-@router.post("/users/{user_id}/days/{day_id}/summarize")
-def summarize(
-    user_id: int,
-    day_id: int,
+# user, date -> entry list
+@router.get("/{date}")
+def get_day(
+    day: date,
     db: Session = Depends(get_db),
-    # current_user: User = Depends(get_current_user),
+    get_current_user: User = Depends(get_current_user),
 ):
-    summary = summarize_day(user_id,day_id, db)
-    return summary
+   return get_day_entries(db, get_current_user, day)     
 
-@router.get("/users/{user_id}/days/{date}")
-def get_user_day(
-    user_id: int,
-    date: str,
+# user, date -> delete day (and its entries)
+@router.delete("/{date}")
+def delete_day(
+    day: date,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    get_current_user: User = Depends(get_current_user),
 ):
-    day = get_day(user_id, date, db)
-    if not day:
-        raise HTTPException(status_code=404, detail="Day not found")
-    return day
+    delete_day_and_entries(db, get_current_user, day)
+    return {"detail": "Day entries deleted"} 
 
-@router.get("/users/{user_id}/days")
-def get_user_days(
-    user_id: int,
-    last_date: Optional[date] = None,  # format: YYYY-MM-DD
-    limit: int = 10,
-    db: Session = Depends(get_db),
-):
-    days = get_all_days(user_id, db, last_date=last_date, limit=limit)
-    return days
 
-@router.post("/users/{user_id}/days/{day_id}/cache-my-day")
-def cache_today(
-    user_id: int,
-    day_id: int,
-    request: CacheMyDayRequest,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-):
-   response = cache_my_day(request.User, request.myday,request.DiaryAssistant)
-   return response
+#### day metadata routes ####
 
-@router.get("/days/get-active-days/{date}")
-def get_active_days_route(
-    date: str,
+# user, date -> day with summary and tags
+@router.get("/{date}/metadata", response_model=DayMetadata)
+def get_day_metadata_route(
+    date: date,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    user: User = Depends(get_current_user),
 ):
-    days = get_active_days(date, current_user.id, db)
-    return days
+   return  get_day_metadata(db, user, date)
+
+
+# user, date -> clear day summary and tags 
+@router.delete("/{date}/metadata")
+def clear_day_metadata(
+    date: date,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    # This actually just deletes the Day entry, which removes summary and tags
+    delete_day_metadata(db, user, date)
+    return {"detail": "Day cleared"}
+
+
+# user, date -> generate day summary and tags
+@router.get("/{date}/generate-summary", response_model=DayMetadata)
+def generate_day_summary_route(
+    date: date,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    return  get_day_metadata(db, user, date, generate_summary=True)

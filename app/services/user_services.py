@@ -1,41 +1,37 @@
+from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
-from fastapi import UploadFile, HTTPException
-from app.models.user import User
-from app.schemas.user import UserCreate
-from app.core.security import hash_password
-from app.services.cloudinary_services import upload_to_cloudinary, delete_from_cloudinary, get_complete_file_url
 
+from app.db.models.user import User
+from app.core.security import hash_password, verify_password
 
-def create_user(db: Session, user: UserCreate) -> User:
-    hashed_password = hash_password(user.password)
-    db_user = User(
-        username=user.username,
-        email=user.email,
-        password_hash=hashed_password,
-    )
-    db.add(db_user)
-    db.commit()
-    db.refresh(db_user)
-    return db_user
-
-
-def update_profile_image(user_id: int, file: UploadFile, db: Session):
-    user = db.query(User).filter(User.id == user_id).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-    
-    if user.profile_image:
-        delete_from_cloudinary(user.profile_image)
-    
-    trimmed_url = upload_to_cloudinary(file)
-    user.profile_image = trimmed_url
+def update_user(
+    db: Session,
+    user: User,
+    email: str,
+) -> User:
+    user.email = email
     db.commit()
     db.refresh(user)
     return user
 
-def get_profile(user_id: int, db: Session):
-    user = db.query(User).filter(User.id == user_id).first()
-    user.profile_image = get_complete_file_url(user.profile_image) if user.profile_image else None
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-    return user
+def change_user_password(
+    db: Session,
+    user: User,
+    old_password: str,
+    new_password: str,
+) -> None:
+    if not verify_password(old_password, user.password_hash):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Old password is incorrect",
+        )
+
+    user.password_hash = hash_password(new_password)
+    db.commit()
+
+def delete_user_account(
+    db: Session,
+    user: User,
+) -> None:
+    db.delete(user)
+    db.commit()
