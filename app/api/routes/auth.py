@@ -80,11 +80,17 @@ def logout(response: Response):
 def get_otp(
     data: GetOTPRequest,
     db: Session = Depends(get_db),
-):
+):  
+    # REMOVE THE FOLLOWING LINES TO ENABLE OTP SERVICE
+    return {
+      "message": "OTP service is currently disabled"
+    }
+
     verify_and_send_otp(
         db=db,
         email=data.email,
         password=data.password,
+        purpose=data.purpose,
     )
     return {"message": "OTP sent successfully"}
 

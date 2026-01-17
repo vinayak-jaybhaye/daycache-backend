@@ -95,15 +95,20 @@ def verify_and_login(
 def verify_and_send_otp(
     db: Session,
     email: str,
-    password: str
+    password: str,
+    purpose: str,
 ) -> None:
-## COMMENTED OUT TO ALLOW OTP FORGOT PASSWORD FLOW
-    # existing_user = db.query(User).filter(User.email == email).first()
-    # if existing_user:
-    #     raise HTTPException(
-    #         status_code=status.HTTP_400_BAD_REQUEST,
-    #         detail="User already exists"
-    #     )
+    existing_user = db.query(User).filter(User.email == email).first()
+    if existing_user and purpose == "signup":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="User already exists"
+        )
+    if not existing_user and purpose == "reset_password":
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found"
+        )
 
     # Generate, store (redis), and return OTP
     otp = store_verification_data(email, password)

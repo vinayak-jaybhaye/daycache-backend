@@ -1,4 +1,5 @@
 from pydantic import BaseModel, EmailStr, field_validator
+from typing import Literal
 
 class PasswordMixin(BaseModel):
     password: str
@@ -30,6 +31,7 @@ class LoginRequest(PasswordMixin):
 
 class GetOTPRequest(PasswordMixin):
     email: EmailStr
+    purpose: Literal["signup", "reset_password"] = "signup"
 
 class GoogleAuthRequest(BaseModel):
     google_token: str
