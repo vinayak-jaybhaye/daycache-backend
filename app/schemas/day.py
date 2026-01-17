@@ -38,3 +38,4 @@ class DayMetadata(BaseModel):
     summary: Optional[str] = None
     tags: Optional[List[str]] = None
     updated_at: Optional[datetime] = None
+    created_at: Optional[datetime] = None

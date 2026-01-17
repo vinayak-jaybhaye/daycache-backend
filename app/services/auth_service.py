@@ -5,8 +5,9 @@ from app.db.models import User
 from app.core.security import hash_password, verify_password
 from app.services.email_services import send_signup_otp
 from app.services.redis_otp_service import store_verification_data, verify_verification_data
-
-
+from google.oauth2 import id_token
+from google.auth.transport import requests
+from app.core.config import settings
 
 def authenticate_google_user(
     db: Session,
@@ -91,20 +92,43 @@ def verify_and_login(
         )
     return user
 
-
 def verify_and_send_otp(
     db: Session,
     email: str,
     password: str
 ) -> None:
-    existing_user = db.query(User).filter(User.email == email).first()
-    if existing_user:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="User already exists"
-        )
+## COMMENTED OUT TO ALLOW OTP FORGOT PASSWORD FLOW
+    # existing_user = db.query(User).filter(User.email == email).first()
+    # if existing_user:
+    #     raise HTTPException(
+    #         status_code=status.HTTP_400_BAD_REQUEST,
+    #         detail="User already exists"
+    #     )
+
     # Generate, store (redis), and return OTP
     otp = store_verification_data(email, password)
     # Send the OTP via email
     send_signup_otp(email, otp)
     
+  
+def reset_password(
+  db: Session,
+  email: str,
+  new_password: str,
+  otp: str
+) -> None:
+    if not verify_verification_data(email, otp, new_password):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid OTP"
+        )
+    
+    user = db.query(User).filter(User.email == email).first()
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found"
+        )
+    
+    user.password_hash = hash_password(new_password)
+    db.commit()

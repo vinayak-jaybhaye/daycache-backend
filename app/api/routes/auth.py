@@ -8,12 +8,14 @@ from app.schemas.auth import (
     GetOTPRequest,
     LoginRequest,
     GoogleAuthRequest,
+    ResetPasswordRequest,
 )
 from app.services.auth_service import (
     verify_and_signup,
     verify_and_login,
     verify_and_send_otp,
     authenticate_google_user,
+    reset_password,
 )
 
 from app.core.security import set_auth_cookie, delete_auth_cookie
@@ -85,3 +87,17 @@ def get_otp(
         password=data.password,
     )
     return {"message": "OTP sent successfully"}
+
+@router.post("/reset-password")
+def reset_password_route(
+  data: ResetPasswordRequest,
+  db: Session = Depends(get_db),
+):
+    reset_password(
+      db=db,
+      email=data.email,
+      new_password=data.password,
+      otp=data.otp,
+    )
+    return {"message": "Password reset successful"}
+    

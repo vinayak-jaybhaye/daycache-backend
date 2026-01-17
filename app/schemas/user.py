@@ -1,11 +1,13 @@
 from pydantic import BaseModel, EmailStr, field_validator
 from datetime import datetime
+from typing import Optional
 
 
 class UserResponse(BaseModel):
     id: int 
     email: EmailStr
-    created_at: datetime
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
 
     class Config:
         from_attributes = True

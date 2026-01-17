@@ -40,6 +40,7 @@ FORMAT:
 DIARY:
 {text}
 """.strip()
+    return text, ["untagged"]
 
     try:
         response = client.models.generate_content(

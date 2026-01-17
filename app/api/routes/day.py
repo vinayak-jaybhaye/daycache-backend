@@ -40,20 +40,20 @@ def list_days(
 # user, date -> entry list
 @router.get("/{date}")
 def get_day(
-    day: date,
+    date: date,
     db: Session = Depends(get_db),
-    get_current_user: User = Depends(get_current_user),
+    user: User = Depends(get_current_user),
 ):
-   return get_day_entries(db, get_current_user, day)     
+   return get_day_entries(db, user, date)     
 
 # user, date -> delete day (and its entries)
 @router.delete("/{date}")
 def delete_day(
-    day: date,
+    date: date,
     db: Session = Depends(get_db),
-    get_current_user: User = Depends(get_current_user),
+    user: User = Depends(get_current_user),
 ):
-    delete_day_and_entries(db, get_current_user, day)
+    delete_day_and_entries(db, user, date)
     return {"detail": "Day entries deleted"} 
 
 

@@ -59,8 +59,8 @@ def list_active_days(
     return [
         {
             "date": d,
-            "summary": metadata_map.get(d).ai_summary if d in metadata_map else None,
-            "tags": metadata_map.get(d).ai_tags if d in metadata_map else None,
+            "summary": metadata_map.get(d).summary if d in metadata_map else None,
+            "tags": metadata_map.get(d).tags if d in metadata_map else None,
         }
         for d in day_dates
     ]
@@ -78,7 +78,7 @@ def get_day_entries(
             Entry.user_id == user.id,
             Entry.entry_date == day,
         )
-        .order_by(Entry.created_at.asc())
+        .order_by(Entry.created_at.desc())
         .all()
     )
 
@@ -99,7 +99,7 @@ def delete_day_and_entries(
     db.query(Day).filter(
         Day.user_id == user.id,
         Day.date == day,
-    ).delete()
+    ).delete(synchronize_session=False)
 
     db.commit()
 
