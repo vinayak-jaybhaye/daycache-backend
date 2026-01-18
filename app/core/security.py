@@ -81,9 +81,18 @@ def set_auth_cookie(response: Response, user) -> None:
 
 
 def delete_auth_cookie(response: Response) -> None:
+    ## DEV
+    # response.delete_cookie(
+    #     key="access_token",
+    #     path="/",
+    #     httponly=True,
+    #     samesite="lax",
+    # )
+
+    ## PROD
     response.delete_cookie(
         key="access_token",
         path="/",
-        httponly=True,
-        samesite="lax",
+        samesite="none",
+        secure=True,
     )
